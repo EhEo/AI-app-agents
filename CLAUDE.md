@@ -100,3 +100,31 @@ If Codex output contains a `## NEED RESEARCH` block:
 - Don't call Gemini / Codex from inside an `Agent` subagent — keep orchestration in the main session so the user sees the routing.
 - Don't act on `NEEDS-FIX` findings without showing the user first.
 - Don't paste secrets / credentials into prompts (both CLIs send to external providers).
+
+---
+
+## Project: agents_gui.py — Dev Notes
+
+**Test:** `C:/Users/MISTOP/AppData/Roaming/Python/Python314/Scripts/pytest.exe tests/test_core.py -v`
+
+**Run (dev):** `python agents_gui.py`  |  **Run (no terminal):** `run.bat` or `pythonw agents_gui.py`
+
+**Windows subprocess rules:**
+
+- `claude` is a `.cmd` file — wrap with `["cmd", "/c", "claude", ...]` on win32
+- Add `creationflags=subprocess.CREATE_NO_WINDOW` to all background Popen calls
+- `bash` scripts: try `shutil.which("bash")` (Git Bash) → fallback `["wsl", "bash"]`; WSL paths need `/mnt/c/...`
+
+**Tkinter Korean font:** Always use `맑은 고딕 9pt` for Korean text — `Segoe UI` has no Korean glyphs and falls back with heavy rendering. GDI light-on-dark makes text appear 1pt heavier; use 9pt not 10pt.
+
+**Codex prerequisite:** Target folder must have `.git` — `init_agents_workspace()` now runs `git init` automatically.
+
+**Log file format** (`.agents-dev/log/gemini-*.log`, `codex-*.log`):
+
+```text
+=== QUERY ===
+[query]
+=== RESPONSE ===
+[response]
+=== END (rc=0) ===
+```
