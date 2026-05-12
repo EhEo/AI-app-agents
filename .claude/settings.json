@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ls ~/.agents-dev/scripts/ 2>/dev/null || echo \"디렉토리 없음\")",
+      "Read(//c/Users/MISTOP/.agents-dev/scripts/**)",
+      "Bash(gemini --version)",
+      "Bash(codex --version)",
+      "Read(//c/Users/MISTOP/.agents-dev/**)",
+      "Read(//c/Users/MISTOP/.agents-dev/roles/**)",
+      "Bash(~/.agents-dev/scripts/ask-gemini.sh \"Python Tkinter GUI app on Windows 11: best practices for \\(1\\) threading with queue.Queue to update ScrolledText widget without GUI freeze — show the after\\(\\) polling pattern, \\(2\\) subprocess.Popen to open a NEW cmd window and run a command inside it — correct quoting for paths with spaces on Windows, \\(3\\) pyinstaller --onefile --windowed packaging pitfalls. Keep answer concise.\")",
+      "Bash(~/.agents-dev/scripts/ask-gemini.sh \"pywinpty Python 라이브러리로 Windows에서 숨겨진 프로세스를 PTY로 실행하는 방법: \\(1\\) PtyProcess.spawn\\(\\) API — 인자, cwd, dimensions 설정법 \\(2\\) read\\(\\) / write\\(\\) API — 논블로킹 읽기 방법, 인코딩 처리 \\(3\\) ANSI escape code 스트리핑 — 가장 간단한 방법 \\(4\\) 프로세스 종료 감지 방법 \\(5\\) pywinpty 설치 방법 및 PyInstaller 번들링 시 주의사항\")",
+      "Bash(C:/Users/MISTOP/AppData/Roaming/Python/Python314/Scripts/pytest.exe tests/test_core.py -v)"
+    ]
+  }
+}
