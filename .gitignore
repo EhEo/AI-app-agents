@@ -1,2 +1,11 @@
 .agents-dev/log/
 .claude/settings.local.json
+
+# Python
+__pycache__/
+*.pyc
+
+# PyInstaller 빌드 산출물
+build/
+dist/
+*.spec

@@ -851,6 +851,7 @@ class AgentTab:
         try:
             proc = subprocess.Popen(
                 cmd,
+                stdin=subprocess.DEVNULL,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -882,6 +883,9 @@ class AgentTab:
                     self._resp_buf = []
                     self._chat.configure(state="normal")
                     self._chat.insert("end", f"\n{self.name}\n", "agent_lbl")
+                    # 스트리밍 시작점 마크 (gravity=left → 이후 삽입 텍스트보다 앞에 고정)
+                    self._chat.mark_set("_resp_start", "end")
+                    self._chat.mark_gravity("_resp_start", "left")
                     self._chat.configure(state="disabled")
                 elif msg == "__DONE__":
                     self._running = False
@@ -889,12 +893,21 @@ class AgentTab:
                     full = "".join(self._resp_buf)
                     self._resp_buf = []
                     self._chat.configure(state="normal")
+                    # _resp_start 마크가 있으면 스트리밍 원본을 삭제 후 Markdown 재렌더링
+                    # 없으면 (START 없이 DONE이 온 비정상 경로) 그대로 이어붙임
+                    if "_resp_start" in self._chat.mark_names():
+                        self._chat.delete("_resp_start", "end")
                     _render_md(self._chat, full)
                     self._chat.insert("end", "\n")
                     self._chat.see("end")
                     self._chat.configure(state="disabled")
                 else:
                     self._resp_buf.append(msg)
+                    # 스트리밍 중 원본 텍스트 실시간 표시 (완료 시 Markdown으로 교체됨)
+                    self._chat.configure(state="normal")
+                    self._chat.insert("end", msg, "agent_msg")
+                    self._chat.see("end")
+                    self._chat.configure(state="disabled")
                     # 굵은 텍스트를 진행 제목으로 실시간 추출
                     for m in _MD_BOLD.finditer(msg):
                         heading = m.group(1).strip()

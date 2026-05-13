@@ -1,2 +1,2 @@
 @echo off
-pyinstaller --onefile --windowed --name AgentsInit agents_gui.py
+python -m PyInstaller --onefile --windowed --name AgentLauncher --clean agents_gui.py
