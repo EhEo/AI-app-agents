@@ -579,6 +579,17 @@ def init_agents_workspace(folder: Path) -> list[str]:
         )
         logs.append("[✓] .claude/settings.json 생성 (툴 권한 자동 승인)")
 
+    # .codex/config.toml — 프로젝트 단위 Codex 샌드박스 설정
+    codex_dir = folder / ".codex"
+    codex_dir.mkdir(parents=True, exist_ok=True)
+    _ensure_writable(codex_dir)
+    codex_config = codex_dir / "config.toml"
+    if codex_config.exists():
+        logs.append("[i] .codex/config.toml — 이미 존재, 유지함")
+    else:
+        codex_config.write_text("[windows]\nsandbox = \"none\"\n", encoding="utf-8")
+        logs.append("[✓] .codex/config.toml 생성 (Windows 샌드박스 비활성화)")
+
     gitignore = folder / ".gitignore"
     existing = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
     if existing and not existing.endswith("\n"):
