@@ -14,7 +14,30 @@
       "Bash(start \"\" pythonw agents_gui.py)",
       "Bash(git rm *)",
       "Bash(git commit -m ' *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(Get-ChildItem \"c:\\\\Users\\\\MISTOP\\\\Documents\\\\02_AI디지털전환\\\\AI-app-agent\" -Exclude .venv)",
+      "Bash(Select-Object Name, PSIsContainer)",
+      "PowerShell(Get-ChildItem \"c:\\\\Users\\\\MISTOP\\\\Documents\\\\02_AI디지털전환\\\\AI-app-agent\" | Where-Object { $_.Name -ne \".venv\" } | Select-Object Name, PSIsContainer)",
+      "Bash(mkdir -p \"c:\\\\Users\\\\MISTOP\\\\Documents\\\\02_AI디지털전환\\\\AI-app-agent\\\\agents_scripts\\\\scripts\" \"c:\\\\Users\\\\MISTOP\\\\Documents\\\\02_AI디지털전환\\\\AI-app-agent\\\\agents_scripts\\\\roles\")",
+      "Bash(cp \"c:\\\\Users\\\\MISTOP\\\\.agents-dev\\\\scripts\\\\ask-gemini.sh\" \"c:\\\\Users\\\\MISTOP\\\\Documents\\\\02_AI디지털전환\\\\AI-app-agent\\\\agents_scripts\\\\scripts\\\\ask-gemini.sh\")",
+      "Bash(cp \"c:\\\\Users\\\\MISTOP\\\\.agents-dev\\\\scripts\\\\ask-codex.sh\" \"c:\\\\Users\\\\MISTOP\\\\Documents\\\\02_AI디지털전환\\\\AI-app-agent\\\\agents_scripts\\\\scripts\\\\ask-codex.sh\")",
+      "Bash(cp \"c:\\\\Users\\\\MISTOP\\\\.agents-dev\\\\scripts\\\\team-layout.sh\" \"c:\\\\Users\\\\MISTOP\\\\Documents\\\\02_AI디지털전환\\\\AI-app-agent\\\\agents_scripts\\\\scripts\\\\team-layout.sh\")",
+      "Bash(cp \"c:\\\\Users\\\\MISTOP\\\\.agents-dev\\\\scripts\\\\dashboard.sh\" \"c:\\\\Users\\\\MISTOP\\\\Documents\\\\02_AI디지털전환\\\\AI-app-agent\\\\agents_scripts\\\\scripts\\\\dashboard.sh\")",
+      "Bash(cp \"c:\\\\Users\\\\MISTOP\\\\.agents-dev\\\\roles\\\\researcher.md\" \"c:\\\\Users\\\\MISTOP\\\\Documents\\\\02_AI디지털전환\\\\AI-app-agent\\\\agents_scripts\\\\roles\\\\researcher.md\")",
+      "Bash(python -c \"import py_compile; py_compile.compile\\('agents_gui.py', doraise=True\\)\")",
+      "Bash(python agents_gui.py)",
+      "Bash(python -c \"import PyInstaller; print\\(PyInstaller.__version__\\)\")",
+      "Bash(python -m PyInstaller AgentLauncher.spec --clean)",
+      "Bash(python -m PyInstaller AgentLauncher.spec)",
+      "Bash(dir \"c:\\\\Users\\\\MISTOP\\\\Documents\\\\02_AI디지털전환\\\\AI-app-agent\\\\dist\")",
+      "PowerShell(\\(Get-Item \"c:\\\\Users\\\\MISTOP\\\\Documents\\\\02_AI디지털전환\\\\AI-app-agent\\\\dist\\\\AgentLauncher.exe\"\\).Length / 1MB | ForEach-Object { \"{0:N1} MB\" -f $_ })",
+      "Bash(python -c \"import ast; ast.parse\\(open\\('agents_gui.py', encoding='utf-8'\\).read\\(\\)\\); print\\('syntax OK'\\)\")",
+      "Bash(python -c ' *)",
+      "Bash(codex exec *)"
+    ],
+    "additionalDirectories": [
+      "c:\\Users\\MISTOP\\Documents\\02_AI디지털전환\\AI-app-agent\\agents_scripts",
+      "c:\\Users\\MISTOP\\Documents\\02_AI��������ȯ\\AI-app-agent"
     ]
   }
 }
