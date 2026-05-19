@@ -547,6 +547,35 @@ def init_agents_workspace(folder: Path) -> list[str]:
         claude_md.write_text(CLAUDE_MD_TEMPLATE, encoding="utf-8")
         logs.append("[✓] CLAUDE.md 생성 완료")
 
+    # .claude/settings.json — 툴 실행 권한 자동 승인 (중간 멈춤 방지)
+    claude_dir = folder / ".claude"
+    claude_dir.mkdir(parents=True, exist_ok=True)
+    _ensure_writable(claude_dir)
+    settings_file = claude_dir / "settings.json"
+    _DEFAULT_PERMISSIONS = {
+        "allow": ["Bash(*)", "Read(*)", "Write(*)", "Edit(*)", "Glob(*)", "Grep(*)"]
+    }
+    if settings_file.exists():
+        try:
+            existing_settings = json.loads(settings_file.read_text(encoding="utf-8"))
+        except Exception:
+            existing_settings = {}
+        if "permissions" not in existing_settings:
+            existing_settings["permissions"] = _DEFAULT_PERMISSIONS
+            settings_file.write_text(
+                json.dumps(existing_settings, ensure_ascii=False, indent=2),
+                encoding="utf-8",
+            )
+            logs.append("[✓] .claude/settings.json — permissions 추가됨")
+        else:
+            logs.append("[i] .claude/settings.json — 이미 permissions 존재, 유지함")
+    else:
+        settings_file.write_text(
+            json.dumps({"permissions": _DEFAULT_PERMISSIONS}, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        logs.append("[✓] .claude/settings.json 생성 (툴 권한 자동 승인)")
+
     gitignore = folder / ".gitignore"
     existing = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
     if existing and not existing.endswith("\n"):
