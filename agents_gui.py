@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import queue
 import re
 import shutil
@@ -54,6 +55,48 @@ _PROJECTS_FILE  = Path.home() / ".agents-dev" / "projects.json"
 _GITIGNORE_ENTRIES = [".agents-dev/log/", ".claude/settings.local.json"]
 
 
+def _bundled_dir() -> Path:
+    """PyInstaller 번들 또는 개발 환경에서 agents_scripts/ 경로를 반환한다."""
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS) / "agents_scripts"  # type: ignore[attr-defined]
+    return Path(__file__).parent / "agents_scripts"
+
+
+def _ensure_writable(path: Path) -> None:
+    """Windows에서 생성한 폴더에 현재 사용자의 쓰기 권한을 명시적으로 부여한다.
+    icacls /grant (OI)(CI)F 로 하위 파일·폴더까지 상속 적용.
+    """
+    if sys.platform != "win32":
+        return
+    username = os.environ.get("USERNAME", "")
+    if not username:
+        return
+    try:
+        subprocess.run(
+            ["icacls", str(path), "/grant", f"{username}:(OI)(CI)F", "/T", "/Q"],
+            capture_output=True, check=False,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+    except Exception:
+        pass
+
+
+def install_bundled_scripts() -> None:
+    """번들된 scripts/와 roles/를 ~/.agents-dev/에 없는 파일만 복사한다."""
+    src_root = _bundled_dir()
+    dst_root = Path.home() / ".agents-dev"
+    for subdir in ("scripts", "roles"):
+        src_dir = src_root / subdir
+        if not src_dir.exists():
+            continue
+        dst_dir = dst_root / subdir
+        dst_dir.mkdir(parents=True, exist_ok=True)
+        _ensure_writable(dst_dir)
+        for src_file in src_dir.iterdir():
+            dst_file = dst_dir / src_file.name
+            shutil.copy2(src_file, dst_file)
+
+
 def _load_projects() -> tuple[Path | None, list[dict]]:
     """저장된 기본 폴더와 프로젝트 목록을 반환한다."""
     try:
@@ -74,6 +117,7 @@ def _load_projects() -> tuple[Path | None, list[dict]]:
 
 def _save_projects(base_folder: Path | None, projects: list[dict]) -> None:
     _PROJECTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+    _ensure_writable(_PROJECTS_FILE.parent)
     data: dict = {"projects": projects}
     if base_folder:
         data["base"] = str(base_folder)
@@ -478,6 +522,8 @@ def init_agents_workspace(folder: Path) -> list[str]:
 
     log_dir = folder / ".agents-dev" / "log"
     log_dir.mkdir(parents=True, exist_ok=True)
+    _ensure_writable(log_dir.parent)
+    _ensure_writable(log_dir)
     logs.append(f"[✓] .agents-dev/log/ 생성: {log_dir}")
 
     # git 저장소 초기화 (Codex git diff HEAD 사용에 필요)
@@ -485,7 +531,7 @@ def init_agents_workspace(folder: Path) -> list[str]:
     if not git_dir.exists():
         res = subprocess.run(
             ["git", "init"], cwd=str(folder),
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         )
         if res.returncode == 0:
             logs.append("[✓] git init 완료 — Codex 리뷰 준비됨")
@@ -495,8 +541,11 @@ def init_agents_workspace(folder: Path) -> list[str]:
         logs.append("[i] git 저장소 이미 존재")
 
     claude_md = folder / "CLAUDE.md"
-    claude_md.write_text(CLAUDE_MD_TEMPLATE, encoding="utf-8")
-    logs.append("[✓] CLAUDE.md 생성 완료")
+    if claude_md.exists():
+        logs.append("[i] CLAUDE.md 이미 존재 — 유지함")
+    else:
+        claude_md.write_text(CLAUDE_MD_TEMPLATE, encoding="utf-8")
+        logs.append("[✓] CLAUDE.md 생성 완료")
 
     gitignore = folder / ".gitignore"
     existing = gitignore.read_text(encoding="utf-8") if gitignore.exists() else ""
@@ -686,17 +735,20 @@ class AgentTab:
     """채팅 히스토리 + 입력창을 가진 단일 에이전트 탭."""
 
     def __init__(self, parent: tk.Frame, name: str, accent: str,
-                 cmd_fn, folder_getter, watcher_getter=None) -> None:
+                 cmd_fn, folder_getter, watcher_getter=None,
+                 show_input: bool = True) -> None:
         self.name = name
         self.accent = accent
         self._cmd_fn = cmd_fn
         self._folder_getter = folder_getter
         self._watcher_getter = watcher_getter
+        self._show_input = show_input
         self._log_prefix: str | None = {"Gemini": "gemini", "Codex": "codex"}.get(name)
         self._queue: queue.Queue[str] = queue.Queue()
         self._resp_buf: list[str] = []
         self._running = False
         self._first_msg = True
+        self._start_time: float | None = None
         self.frame = parent
         self._build()
 
@@ -704,12 +756,27 @@ class AgentTab:
         # 입력창 높이 변화가 앱 창 크기에 영향을 주지 않도록 전파 차단
         self.frame.pack_propagate(False)
 
-        # ── 입력 영역 — 먼저 bottom 고정 pack (창이 작아져도 항상 보임) ──────
-        input_outer = tk.Frame(self.frame, bg=_BG)
-        input_outer.pack(side="bottom", fill="x", padx=80, pady=(10, 6))
+        # ── 입력 영역 — show_input=False(Gemini·Codex)면 생략 ────────────────
+        self._md_btn: _RoundBtn | None = None
+        self._btn_bar: tk.Frame | None = None
+        self._input_bar: _RoundInput | None = None  # type: ignore[assignment]
 
-        self._input_bar = _RoundInput(input_outer, self._send, self.accent)
-        self._input_bar.pack(fill="x")
+        if self._show_input:
+            input_outer = tk.Frame(self.frame, bg=_BG)
+            input_outer.pack(side="bottom", fill="x", padx=80, pady=(10, 6))
+
+            # Claude 탭 전용: MD 파일 첨부 버튼
+            if self.name == "Claude":
+                self._btn_bar = tk.Frame(input_outer, bg=_BG)
+                self._btn_bar.pack(fill="x", pady=(0, 4))
+                self._md_btn = _RoundBtn(
+                    self._btn_bar, "📄 MD", self._attach_md,
+                    "#444444", radius=8, fontsize=9, width=70, height=22,
+                )
+                self._md_btn.pack(side="left")
+
+            self._input_bar = _RoundInput(input_outer, self._send, self.accent)
+            self._input_bar.pack(fill="x")
 
         # ── 진행 제목 헤더 (굵은 텍스트 자동 추출) ───────────────────────
         self._header_lbl = tk.Label(
@@ -774,6 +841,8 @@ class AgentTab:
             foreground=_TEXT_DIM,  font=(_FONT_KO, 9))
         self._chat.tag_configure("md_hr",
             foreground="#444444",  font=(_FONT_KO, 8))
+        self._chat.tag_configure("thinking_dots",
+            foreground=_TEXT_DIM,  font=(_FONT_KO, 11))
 
         # 빈 화면 플레이스홀더
         self._ph = tk.Label(self._chat, text="어디서부터 시작할까요?",
@@ -811,11 +880,18 @@ class AgentTab:
         self._chat.tag_configure("md_hr",      foreground=hr_fg)
         self._ph.config(bg=_BG, fg=_TEXT_DIM)
         self._header_lbl.config(bg=_BG, fg=_TEXT_DIM)
-        self._input_bar.retheme()
+        if self._input_bar:
+            self._input_bar.retheme()
+        if self._btn_bar:
+            self._btn_bar.config(bg=_BG)
+        if self._md_btn:
+            self._md_btn.retheme(_BG)
 
     # ── 전송 ─────────────────────────────────────────────────────────────────
 
     def _send(self) -> None:
+        if self._input_bar is None:
+            return
         msg = self._input_bar.get_text().strip()
         if not msg or self._running:
             return
@@ -825,6 +901,7 @@ class AgentTab:
 
         self._append_you(msg)
         self._running = True
+        self._start_time = time.time()
         self._input_bar.set_sending(True)
 
         first = self._first_msg
@@ -883,18 +960,19 @@ class AgentTab:
                     self._resp_buf = []
                     self._chat.configure(state="normal")
                     self._chat.insert("end", f"\n{self.name}\n", "agent_lbl")
-                    # 스트리밍 시작점 마크 (gravity=left → 이후 삽입 텍스트보다 앞에 고정)
                     self._chat.mark_set("_resp_start", "end")
                     self._chat.mark_gravity("_resp_start", "left")
+                    self._chat.insert("end", "  ● ● ●\n", "thinking_dots")
+                    self._chat.see("end")
                     self._chat.configure(state="disabled")
                 elif msg == "__DONE__":
                     self._running = False
-                    self._input_bar.set_sending(False)
+                    self._start_time = None
+                    if self._input_bar:
+                        self._input_bar.set_sending(False)
                     full = "".join(self._resp_buf)
                     self._resp_buf = []
                     self._chat.configure(state="normal")
-                    # _resp_start 마크가 있으면 스트리밍 원본을 삭제 후 Markdown 재렌더링
-                    # 없으면 (START 없이 DONE이 온 비정상 경로) 그대로 이어붙임
                     if "_resp_start" in self._chat.mark_names():
                         self._chat.delete("_resp_start", "end")
                     _render_md(self._chat, full)
@@ -903,12 +981,13 @@ class AgentTab:
                     self._chat.configure(state="disabled")
                 else:
                     self._resp_buf.append(msg)
-                    # 스트리밍 중 원본 텍스트 실시간 표시 (완료 시 Markdown으로 교체됨)
-                    self._chat.configure(state="normal")
-                    self._chat.insert("end", msg, "agent_msg")
-                    self._chat.see("end")
-                    self._chat.configure(state="disabled")
-                    # 굵은 텍스트를 진행 제목으로 실시간 추출
+                    # Windows 샌드박스 권한 오류 감지 → 한국어 안내
+                    if "CreateProcessAsUserW failed" in msg or "CreateProcessWithLogonW failed" in msg:
+                        self.append_system(
+                            "⚠ Codex 샌드박스 오류 감지 — 이 계정에 격리 프로세스 권한이 없습니다.\n"
+                            "   ask-codex.sh 에 --sandbox=none 플래그가 포함된 최신 버전으로 재설치하세요."
+                        )
+                    # 굵은 텍스트를 진행 제목 헤더에 실시간 반영
                     for m in _MD_BOLD.finditer(msg):
                         heading = m.group(1).strip()
                         if len(heading) >= 3:
@@ -927,6 +1006,44 @@ class AgentTab:
         self._chat.see("end")
         self._chat.configure(state="disabled")
 
+    def _attach_md(self) -> None:
+        """MD 파일을 선택해 내용을 입력창 앞에 삽입한다."""
+        folder = self._folder_getter()
+        initial_dir = str(folder) if folder else str(Path.home())
+        path = filedialog.askopenfilename(
+            title="MD 파일 선택",
+            initialdir=initial_dir,
+            filetypes=[("Markdown 파일", "*.md"), ("모든 파일", "*.*")],
+        )
+        if not path:
+            return
+        try:
+            content = Path(path).read_text(encoding="utf-8")
+        except OSError as e:
+            messagebox.showerror("파일 읽기 실패", str(e))
+            return
+        fname = Path(path).name
+        snippet = f"[{fname}]\n{content}\n\n"
+        if self._input_bar is None:
+            return
+        entry = self._input_bar.entry
+        cur = self._input_bar.get_text()
+        entry.configure(fg=_TEXT)
+        if cur:
+            entry.insert("1.0", snippet)
+        else:
+            entry.delete("1.0", "end")
+            entry.insert("1.0", snippet)
+        self._input_bar._on_text_change(None)
+
+    def clear(self) -> None:
+        """채팅 내용을 지우고 초기 상태로 되돌린다."""
+        self._chat.configure(state="normal")
+        self._chat.delete("1.0", "end")
+        self._chat.configure(state="disabled")
+        self._first_msg = True
+        self._ph.place(relx=0.5, rely=0.42, anchor="center")
+
     def append_system(self, msg: str) -> None:
         self._chat.configure(state="normal")
         self._chat.insert("end", f"{msg}\n", "system_msg")
@@ -934,7 +1051,8 @@ class AgentTab:
         self._chat.configure(state="disabled")
 
     def focus_input(self) -> None:
-        self._input_bar.entry.focus()
+        if self._input_bar:
+            self._input_bar.entry.focus()
 
 
 # ── AgentsGUI ─────────────────────────────────────────────────────────────────
@@ -944,6 +1062,7 @@ class AgentsGUI(tk.Tk):
     """Agent Launcher — 3-agent 탭 채팅 인터페이스."""
 
     def __init__(self) -> None:
+        install_bundled_scripts()
         super().__init__()
         self.title("Agent Launcher")
         self.configure(bg=_BG)
@@ -1134,8 +1253,8 @@ class AgentsGUI(tk.Tk):
         watcher_getter = lambda: self._log_watcher
         self._tabs = [
             AgentTab(claude_f, "Claude", _GREEN,  _claude_cmd, getter),
-            AgentTab(gemini_f, "Gemini", _BLUE,   _gemini_cmd, getter, watcher_getter),
-            AgentTab(codex_f,  "Codex",  _PURPLE, _codex_cmd,  getter, watcher_getter),
+            AgentTab(gemini_f, "Gemini", _BLUE,   _gemini_cmd, getter, watcher_getter, show_input=False),
+            AgentTab(codex_f,  "Codex",  _PURPLE, _codex_cmd,  getter, watcher_getter, show_input=False),
         ]
         self._build_init_tab(init_f)
 
@@ -1240,6 +1359,11 @@ class AgentsGUI(tk.Tk):
                 self._base_folder = self._folder.parent  # base 자동 추론
                 self._update_folder_display()
                 self._reset_watcher()
+                # 한 번도 초기화되지 않은 프로젝트만 자동 초기화
+                if not (self._folder / ".agents-dev" / "log").exists():
+                    self._run_init()
+                else:
+                    self._restore_project_state()
                 return
 
     def _new_project(self) -> None:
@@ -1258,6 +1382,7 @@ class AgentsGUI(tk.Tk):
         new_path = self._base_folder / name
         try:
             new_path.mkdir(parents=True, exist_ok=True)
+            _ensure_writable(new_path)
         except OSError as e:
             messagebox.showerror("폴더 생성 실패", str(e), parent=self)
             return
@@ -1274,6 +1399,7 @@ class AgentsGUI(tk.Tk):
         self._refresh_combo()
         self._proj_combo.set(name)
         self._reset_watcher()
+        self._run_init()
 
     def _delete_project(self) -> None:
         name = self._proj_combo.get()
@@ -1296,6 +1422,42 @@ class AgentsGUI(tk.Tk):
             return
         opener = {"win32": "explorer", "darwin": "open"}.get(sys.platform, "xdg-open")
         subprocess.Popen([opener, str(self._folder)])
+
+    def _restore_project_state(self) -> None:
+        """이미 초기화된 프로젝트 선택 시 초기화 탭·에이전트 탭 상태를 복원한다."""
+        if self._folder is None:
+            return
+        for tab in self._tabs:
+            tab.clear()
+        folder = self._folder
+        log_dir = folder / ".agents-dev" / "log"
+
+        # 초기화 탭: 프로젝트 상태 요약
+        self._clear_log()
+        self._append_log(f"[i] 기존 프로젝트: {folder.name}")
+        self._append_log(f"[i] 경로: {folder}")
+        self._append_log("[✓] git 저장소 확인됨" if (folder / ".git").exists()
+                         else "[⚠] git 저장소 없음")
+        for script in ["ask-gemini.sh", "ask-codex.sh"]:
+            p = _SCRIPTS_DIR / script
+            self._append_log(f"[✓] {script} 확인됨" if p.exists()
+                             else f"[⚠] {script} 없음 — 필요 경로: {p}")
+        self._append_log("─" * 58)
+        self._append_log("[✓] 프로젝트 로드 완료")
+
+        # Gemini / Codex 탭: latest-*.log 복원
+        if self._log_watcher is None:
+            return
+        for prefix, tab_idx in [("gemini", 1), ("codex", 2)]:
+            latest = log_dir / f"latest-{prefix}.log"
+            if not latest.exists():
+                continue
+            try:
+                text = latest.read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                continue
+            if "=== END" in text:
+                self._log_watcher._display(self._tabs[tab_idx], text)
 
     def _run_init(self) -> None:
         if self._folder is None:
@@ -1351,6 +1513,9 @@ class AgentsGUI(tk.Tk):
                 label = "초기화 중"
             else:
                 label = _STATUS_LABELS.get(running_tab.name, running_tab.name)
+                if running_tab is not None and running_tab._start_time is not None:
+                    elapsed = int(time.time() - running_tab._start_time)
+                    label = f"{label}  ({elapsed}초)"
             self._status_lbl.config(text=f"{spinner} {label}", fg=_GREEN)
         else:
             self._status_lbl.config(text="")
@@ -1358,6 +1523,8 @@ class AgentsGUI(tk.Tk):
         self.after(80, self._poll_all)
 
     def _switch_to_claude(self) -> None:
+        for tab in self._tabs:
+            tab.clear()
         self._nb.select(0)
         if self._folder:
             self._tabs[0].append_system(
