@@ -529,14 +529,17 @@ def init_agents_workspace(folder: Path) -> list[str]:
     # git 저장소 초기화 (Codex git diff HEAD 사용에 필요)
     git_dir = folder / ".git"
     if not git_dir.exists():
-        res = subprocess.run(
-            ["git", "init"], cwd=str(folder),
-            capture_output=True, text=True, encoding="utf-8", errors="replace",
-        )
-        if res.returncode == 0:
-            logs.append("[✓] git init 완료 — Codex 리뷰 준비됨")
-        else:
-            logs.append(f"[⚠] git init 실패: {res.stderr.strip() or 'git CLI 미설치'}")
+        try:
+            res = subprocess.run(
+                ["git", "init"], cwd=str(folder),
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+            )
+            if res.returncode == 0:
+                logs.append("[✓] git init 완료 — Codex 리뷰 준비됨")
+            else:
+                logs.append(f"[⚠] git init 실패: {res.stderr.strip() or 'git CLI 미설치'}")
+        except FileNotFoundError:
+            logs.append("[⚠] git CLI 미설치 — Codex 리뷰를 위해 git 설치 권장")
     else:
         logs.append("[i] git 저장소 이미 존재")
 
