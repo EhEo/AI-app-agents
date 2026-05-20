@@ -583,11 +583,17 @@ def init_agents_workspace(folder: Path) -> list[str]:
     codex_dir = folder / ".codex"
     codex_dir.mkdir(parents=True, exist_ok=True)
     _ensure_writable(codex_dir)
+    _CODEX_CONFIG_CONTENT = "[windows]\nsandbox = \"unelevated\"\n"
     codex_config = codex_dir / "config.toml"
     if codex_config.exists():
-        logs.append("[i] .codex/config.toml — 이미 존재, 유지함")
+        existing_codex = codex_config.read_text(encoding="utf-8")
+        if "sandbox" in existing_codex and "unelevated" not in existing_codex:
+            codex_config.write_text(_CODEX_CONFIG_CONTENT, encoding="utf-8")
+            logs.append("[✓] .codex/config.toml 수정 (sandbox → unelevated)")
+        else:
+            logs.append("[i] .codex/config.toml — 이미 존재, 유지함")
     else:
-        codex_config.write_text("[windows]\nsandbox = \"none\"\n", encoding="utf-8")
+        codex_config.write_text(_CODEX_CONFIG_CONTENT, encoding="utf-8")
         logs.append("[✓] .codex/config.toml 생성 (Windows 샌드박스 비활성화)")
 
     gitignore = folder / ".gitignore"
@@ -1028,7 +1034,7 @@ class AgentTab:
                     if "CreateProcessAsUserW failed" in msg or "CreateProcessWithLogonW failed" in msg:
                         self.append_system(
                             "⚠ Codex 샌드박스 오류 감지 — 이 계정에 격리 프로세스 권한이 없습니다.\n"
-                            "   ask-codex.sh 에 --sandbox=none 플래그가 포함된 최신 버전으로 재설치하세요."
+                            "   프로젝트 폴더를 다시 초기화하거나 최신 버전으로 재설치하세요."
                         )
                     # 굵은 텍스트를 진행 제목 헤더에 실시간 반영
                     for m in _MD_BOLD.finditer(msg):
