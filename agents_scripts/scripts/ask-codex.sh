@@ -63,7 +63,7 @@ LATEST="$LOG_DIR/latest-codex.log"
 
 echo "[ask-codex] running — log: $LATEST" >&2
 RC=0
-"${REVIEWER_CLI:-${CODEX_CLI:-codex}}" exec --skip-git-repo-check -s none "$PROMPT" 2>&1 | tee -a "$LOG" "$LATEST" || RC=$?
+"${REVIEWER_CLI:-${CODEX_CLI:-codex}}" exec --skip-git-repo-check --dangerously-bypass-approvals-and-sandbox "$PROMPT" 2>&1 | tee -a "$LOG" "$LATEST" || RC=$?
 printf '\n=== END (rc=%d) ===\n' "$RC" >> "$LOG"
 printf '\n=== END (rc=%d) ===\n' "$RC" >> "$LATEST"
 echo; echo "(log: $LOG, rc=$RC)" >&2
