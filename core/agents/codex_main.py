@@ -1,7 +1,12 @@
 # codex-main 에이전트 — 보조 구현·코드 분석·테스트·diff·로컬 검증 실행
 from __future__ import annotations
 
+from pathlib import Path
 
-def build_cmd(message: str, **kwargs) -> list[str]:
+from core.shell import bash_prefix, script_path
+
+
+def build_cmd(message: str, *, scripts_dir: Path, **_) -> list[str]:
     """codex-main 호출 명령어를 반환한다."""
-    raise NotImplementedError
+    prefix = bash_prefix()
+    return prefix + [script_path("ask-codex.sh", scripts_dir), message]

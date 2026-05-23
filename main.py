@@ -4,6 +4,7 @@ from ui.app import AgentLauncherApp
 
 def main() -> None:
     app = AgentLauncherApp()
+    app.protocol("WM_DELETE_WINDOW", app.on_close)
     app.mainloop()
 
 
