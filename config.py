@@ -15,11 +15,13 @@ class AgentDef:
     log_prefix: str   # log.md에서 이 에이전트 식별에 쓰는 접두어
 
 
+ACCENT_PRIMARY = "#E07B39"   # Claude 브랜드 오렌지
+
 AGENTS: list[AgentDef] = [
     AgentDef(
         key="claude-main",
         label="Claude",
-        accent="#10a37f",
+        accent=ACCENT_PRIMARY,
         role="오케스트레이션 · 메인 코딩 · 설계 · 아키텍처 · 전략",
         log_prefix="claude",
     ),
@@ -66,11 +68,11 @@ THEMES: dict[str, Theme] = {
     "dark": Theme(
         bg="#212121",
         bg_dark="#171717",
-        bg_input="#2f2f2f",
-        bg_panel="#1a1a1a",
+        bg_input="#3a3a3a",
+        bg_panel="#282828",
         text="#ececec",
-        text_dim="#8e8ea0",
-        border="#3a3a3a",
+        text_dim="#b0b0c0",
+        border="#4a4a4a",
     ),
     "light": Theme(
         bg="#f7f7f8",

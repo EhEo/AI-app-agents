@@ -9,3 +9,6 @@ __pycache__/
 build/
 dist/
 *.spec
+
+# 참조용 코드
+Regerence_code/

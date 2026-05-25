@@ -58,11 +58,12 @@ class AgentLauncherApp(tk.Tk):
         tk.Label(top_bar, text="Agent Launcher v2",
                  bg=t.bg_dark, fg=t.text,
                  font=(FONT_KO, 10, "bold")).pack(side="left", padx=12, pady=6)
-        tk.Label(top_bar, text="설정",
-                 bg=t.bg_dark, fg=t.text_dim,
-                 font=(FONT_KO, FONT_SIZE_SMALL),
-                 cursor="hand2").pack(side="right", padx=12, pady=6) \
-            .bind("<Button-1>", lambda _: self._open_settings())
+        settings_lbl = tk.Label(top_bar, text="설정",
+                                 bg=t.bg_dark, fg=t.text_dim,
+                                 font=(FONT_KO, FONT_SIZE_SMALL),
+                                 cursor="hand2")
+        settings_lbl.pack(side="right", padx=12, pady=6)
+        settings_lbl.bind("<Button-1>", lambda _: self._open_settings())
 
         # 좌우 분할 PanedWindow
         self._paned = tk.PanedWindow(
@@ -93,12 +94,11 @@ class AgentLauncherApp(tk.Tk):
 
     def _poll(self) -> None:
         """80ms 주기 폴링 — 로그 이벤트 소비 + 스트리밍 출력 처리."""
-        self._log_watcher.poll()
         try:
             while True:
                 event = self._event_queue.get_nowait()
                 self._right.push_event(event)
-        except Exception:
+        except queue.Empty:
             pass
         self._right.poll_output()
         self.after(80, self._poll)

@@ -7,7 +7,7 @@ from pathlib import Path
 from tkinter import messagebox, simpledialog
 from typing import Callable
 
-from config import FONT_KO, FONT_SIZE_BODY, FONT_SIZE_SMALL
+from config import ACCENT_PRIMARY, FONT_KO, FONT_SIZE_BODY, FONT_SIZE_SMALL
 from ui.widgets.common import RoundBtn
 from ui.widgets.task_list import TaskListWidget
 
@@ -19,7 +19,7 @@ class LeftPanel:
                  on_project_change: Callable[[Path], None] | None = None,
                  bg: str = "#1a1a1a", bg_dark: str = "#171717",
                  fg: str = "#ececec", fg_dim: str = "#8e8ea0",
-                 accent: str = "#10a37f") -> None:
+                 accent: str = ACCENT_PRIMARY) -> None:
         self._on_project_change = on_project_change or (lambda _: None)
         self._bg      = bg
         self._bg_dark = bg_dark

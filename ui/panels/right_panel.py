@@ -6,7 +6,7 @@ import tkinter as tk
 from pathlib import Path
 from typing import Callable
 
-from config import AGENTS, FONT_KO, FONT_SIZE_SMALL, SPINNER_FRAMES
+from config import ACCENT_PRIMARY, AGENTS, FONT_KO, FONT_SIZE_SMALL, SPINNER_FRAMES
 from core.log_watcher import LogEvent
 from core.workflow import run_agent
 from ui.widgets.common import RoundInput
@@ -75,7 +75,7 @@ class RightPanel:
         self._status_lbl.pack(side="right")
 
         # 입력창
-        accent = next((a.accent for a in AGENTS if a.key == self._active_agent), "#10a37f")
+        accent = next((a.accent for a in AGENTS if a.key == self._active_agent), ACCENT_PRIMARY)
         self._input = RoundInput(
             bottom, on_send=self._send,
             btn_color=accent,
@@ -130,10 +130,13 @@ class RightPanel:
         self._running = True
         self._status_lbl.config(text="")
 
-        def on_done(rc: int) -> None:
+        def _finish(rc: int) -> None:
             self._running = False
             self._input.set_sending(False)
             self._status_lbl.config(text="완료" if rc == 0 else f"오류 (rc={rc})")
+
+        def on_done(rc: int) -> None:
+            self.frame.after(0, lambda: _finish(rc))
 
         run_agent(
             self._active_agent,

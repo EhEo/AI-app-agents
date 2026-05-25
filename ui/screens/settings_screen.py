@@ -6,7 +6,7 @@ from pathlib import Path
 from tkinter import filedialog
 from typing import Callable
 
-from config import FONT_KO, FONT_SIZE_BODY, FONT_SIZE_SMALL, THEMES
+from config import ACCENT_PRIMARY, FONT_KO, FONT_SIZE_BODY, FONT_SIZE_SMALL, THEMES
 from core.workspace import load_settings, save_settings, init_project
 from ui.widgets.common import RoundBtn
 
@@ -17,7 +17,7 @@ class SettingsScreen(tk.Toplevel):
     def __init__(self, parent: tk.Widget,
                  on_save: Callable[[dict], None] | None = None,
                  bg: str = "#212121", fg: str = "#ececec",
-                 fg_dim: str = "#8e8ea0", accent: str = "#10a37f") -> None:
+                 fg_dim: str = "#8e8ea0", accent: str = ACCENT_PRIMARY) -> None:
         super().__init__(parent)
         self.title("설정")
         self.resizable(False, False)
