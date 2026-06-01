@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+# agents-init — 폴더를 3-에이전트(PM+Coder / Gemini / Codex) 워크스페이스로 초기화하고
+#               tmux 3분할 레이아웃을 띄운다. ~/bin 에 위치하므로 PATH 에 자동 포함된다.
+#
+# 사용법:
+#   agents-init [폴더]                       # 폴더 생략 시 현재 폴더
+#   agents-init [폴더] --no-attach --bypass  # 옵션은 team-layout.sh 로 전달
+#   agents-init --here                       # 현재 tmux 창에 레이아웃 적용
+set -euo pipefail
+
+AGENTS_HOME="$HOME/.agents-dev"
+TEAM_LAYOUT="$AGENTS_HOME/scripts/team-layout.sh"
+TEMPLATE="$AGENTS_HOME/CLAUDE.md.template"
+
+usage() {
+  cat <<'USAGE'
+agents-init — 폴더를 3-에이전트(PM+Coder · Gemini · Codex) 워크스페이스로
+              초기화하고 tmux 3분할 레이아웃을 띄운다.
+
+사용법:
+  agents-init [폴더] [옵션...]      # 폴더 생략 시 현재 폴더, 옵션은 team-layout 로 전달
+옵션:
+  --project-dir PATH   대상 폴더 지정 (위치 인자 대신)
+  -n, --session NAME   tmux 세션명
+  --no-attach          세션만 만들고 attach 안 함
+  --here               현재 tmux 창에 레이아웃 적용
+  --bypass             claude --dangerously-skip-permissions 로 시작
+  -h, --help           이 도움말
+USAGE
+}
+
+# 인자 파싱: [폴더]는 위치 인자, 나머지 옵션은 team-layout.sh 로 패스스루.
+# --project-dir/--session/-n 은 값 1개를 소비하므로 그 값을 폴더로 오인하지 않는다.
+TARGET=""
+PASS=()
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --project-dir)
+      [ "$#" -ge 2 ] || { echo "✗ --project-dir 에 값이 필요합니다" >&2; exit 2; }
+      TARGET="$2"; shift 2 ;;
+    -n|--session)
+      [ "$#" -ge 2 ] || { echo "✗ $1 에 값이 필요합니다" >&2; exit 2; }
+      PASS+=("$1" "$2"); shift 2 ;;
+    -h|--help)
+      usage; exit 0 ;;            # preflight 전에 도움말 출력 후 종료
+    --no-attach|--here|--bypass)
+      PASS+=("$1"); shift ;;
+    -*)
+      PASS+=("$1"); shift ;;            # 알 수 없는 옵션은 그대로 전달
+    *)
+      if [ -z "$TARGET" ]; then TARGET="$1"; else PASS+=("$1"); fi
+      shift ;;
+  esac
+done
+[ -z "$TARGET" ] && TARGET="$PWD"
+mkdir -p "$TARGET"
+TARGET="$(cd "$TARGET" && pwd)"
+echo "▶ 대상 폴더: $TARGET"
+
+# 전제 조건
+[ -x "$TEAM_LAYOUT" ] || { echo "✗ team-layout.sh 를 찾을 수 없음: $TEAM_LAYOUT" >&2; echo "  → AI-app-agent GUI 의 '스크립트 설치' 또는 번들 복사를 먼저 실행하세요." >&2; exit 2; }
+command -v tmux >/dev/null 2>&1 || { echo "✗ tmux 가 PATH 에 없음 (~/bin/tmux.exe 설치 필요)" >&2; exit 2; }
+
+# 워크스페이스 초기화 (GUI init_agents_workspace 와 동일)
+mkdir -p "$TARGET/.agents-dev/log"; echo "[✓] .agents-dev/log/"
+mkdir -p "$TARGET/tasks";          echo "[✓] tasks/"
+
+if [ ! -d "$TARGET/.git" ]; then
+  if git -C "$TARGET" init -q 2>/dev/null; then echo "[✓] git init"; else echo "[⚠] git init 실패 (git 미설치?)"; fi
+else
+  echo "[i] git 저장소 이미 존재"
+fi
+
+CLAUDE_MD="$TARGET/CLAUDE.md"
+if [ -e "$CLAUDE_MD" ]; then
+  echo "[i] CLAUDE.md 이미 존재 — 유지"
+elif [ -f "$TEMPLATE" ]; then
+  cp "$TEMPLATE" "$CLAUDE_MD"; echo "[✓] CLAUDE.md 생성 (템플릿)"
+else
+  cat > "$CLAUDE_MD" <<'FALLBACK_EOF'
+# CLAUDE.md — orchestration policy
+You are the PM + Coder in a 3-agent team.
+- Researcher (Gemini): ~/.agents-dev/scripts/ask-gemini.sh "question"
+- Reviewer  (Codex):  ~/.agents-dev/scripts/ask-codex.sh "focus"
+Workflow: PLAN → RESEARCH(Gemini) → CODE → REVIEW(Codex) → FIX → REPORT. Do not skip RESEARCH or REVIEW.
+FALLBACK_EOF
+  echo "[✓] CLAUDE.md 생성 (기본 폴백)"
+fi
+
+mkdir -p "$TARGET/.claude"
+SETTINGS="$TARGET/.claude/settings.json"
+if [ ! -e "$SETTINGS" ]; then
+  cat > "$SETTINGS" <<'JSON_EOF'
+{
+  "permissions": {
+    "allow": ["Bash(*)", "Read(*)", "Write(*)", "Edit(*)", "Glob(*)", "Grep(*)"]
+  }
+}
+JSON_EOF
+  echo "[✓] .claude/settings.json 생성"
+else
+  echo "[i] .claude/settings.json 이미 존재 — 유지"
+fi
+
+mkdir -p "$TARGET/.codex"
+CODEX_CFG="$TARGET/.codex/config.toml"
+if [ ! -e "$CODEX_CFG" ]; then
+  printf '[windows]\nsandbox = "unelevated"\n' > "$CODEX_CFG"; echo "[✓] .codex/config.toml 생성"
+else
+  echo "[i] .codex/config.toml 이미 존재 — 유지"
+fi
+
+GI="$TARGET/.gitignore"
+[ -e "$GI" ] && [ -n "$(tail -c1 "$GI" 2>/dev/null)" ] && printf '\n' >> "$GI"
+for entry in ".agents-dev/log/" ".claude/settings.local.json"; do
+  if [ ! -e "$GI" ] || ! grep -qxF "$entry" "$GI" 2>/dev/null; then
+    printf '%s\n' "$entry" >> "$GI"; echo "[✓] .gitignore += $entry"
+  fi
+done
+
+if [ "${#PASS[@]}" -gt 0 ]; then printf -v _pass_disp ' %q' "${PASS[@]}"; else _pass_disp=""; fi
+printf '▶ tmux 레이아웃 실행: team-layout.sh --project-dir %q%s\n' "$TARGET" "$_pass_disp"
+exec bash "$TEAM_LAYOUT" --project-dir "$TARGET" "${PASS[@]}"

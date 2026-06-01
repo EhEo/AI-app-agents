@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -46,10 +47,26 @@ def ensure_writable(path: Path) -> None:
         pass
 
 
-def install_bundled_scripts() -> None:
-    """번들된 scripts/를 ~/.agents-dev/에 복사한다 (없는 파일만)."""
+def _make_executable(path: Path) -> None:
+    """파일에 실행 비트를 부여한다 (MSYS/Git Bash 에서 PATH 명령으로 인식되도록)."""
+    try:
+        path.chmod(path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+    except OSError:
+        pass
+
+
+def install_bundled_scripts(home: Path | None = None) -> None:
+    """번들된 헬퍼/런처/템플릿을 사용자 홈에 설치한다.
+
+    - scripts/, roles/        → ~/.agents-dev/{scripts,roles}/
+    - bin/* (agents-init 등)   → ~/bin/  (PATH 에 자동 포함 — 터미널 단독 실행용)
+    - CLAUDE.md.template       → ~/.agents-dev/CLAUDE.md.template
+    """
     src_root = bundled_dir()
-    dst_root = Path.home() / ".agents-dev"
+    home = home or Path.home()
+    dst_root = home / ".agents-dev"
+
+    # scripts/, roles/ → ~/.agents-dev/
     for subdir in ("scripts", "roles"):
         src_dir = src_root / subdir
         if not src_dir.exists():
@@ -58,7 +75,27 @@ def install_bundled_scripts() -> None:
         dst_dir.mkdir(parents=True, exist_ok=True)
         ensure_writable(dst_dir)
         for src_file in src_dir.iterdir():
-            shutil.copy2(src_file, dst_dir / src_file.name)
+            if src_file.is_file():
+                shutil.copy2(src_file, dst_dir / src_file.name)
+
+    # bin/* → ~/bin/ (agents-init, agent-init, install-tmux.sh)
+    src_bin = src_root / "bin"
+    if src_bin.exists():
+        bin_dir = home / "bin"
+        bin_dir.mkdir(parents=True, exist_ok=True)
+        ensure_writable(bin_dir)
+        for src_file in src_bin.iterdir():
+            if src_file.is_file():
+                dst_file = bin_dir / src_file.name
+                shutil.copy2(src_file, dst_file)
+                _make_executable(dst_file)
+
+    # CLAUDE.md.template → ~/.agents-dev/CLAUDE.md.template
+    src_tpl = src_root / "CLAUDE.md.template"
+    if src_tpl.exists():
+        dst_root.mkdir(parents=True, exist_ok=True)
+        ensure_writable(dst_root)
+        shutil.copy2(src_tpl, dst_root / "CLAUDE.md.template")
 
 
 def init_project(folder: Path) -> list[str]:

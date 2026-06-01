@@ -1,0 +1,5 @@
+# bash/MSYS(Git Bash) 스크립트는 반드시 LF 유지 — CRLF 면 'bad interpreter' 로 깨진다.
+# (core.autocrlf=true 환경에서도 아래 eol=lf 가 우선한다)
+*.sh                  text eol=lf
+*.template            text eol=lf
+agents_scripts/bin/*  text eol=lf

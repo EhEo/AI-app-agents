@@ -61,14 +61,13 @@ def test_returns_log_lines(tmp_path):
     assert all(isinstance(line, str) for line in logs)
 
 
-def test_already_initialized_overwrites_without_bak(tmp_path):
-    """이미 CLAUDE.md 가 있으면 백업 없이 덮어쓴다."""
+def test_already_initialized_keeps_existing_claude_md(tmp_path):
+    """이미 CLAUDE.md 가 있으면 백업도 덮어쓰기도 하지 않고 그대로 유지한다."""
     from agents_gui import init_agents_workspace
     (tmp_path / "CLAUDE.md").write_text("old content", encoding="utf-8")
     init_agents_workspace(tmp_path)
     assert not (tmp_path / "CLAUDE.md.bak").exists()
-    new_content = (tmp_path / "CLAUDE.md").read_text(encoding="utf-8")
-    assert new_content != "old content"
+    assert (tmp_path / "CLAUDE.md").read_text(encoding="utf-8") == "old content"
 
 
 def test_launch_returns_false_when_no_claude(tmp_path, monkeypatch):
@@ -89,3 +88,35 @@ def test_gitignore_comment_containing_entry_does_not_block_addition(tmp_path):
     lines = (tmp_path / ".gitignore").read_text(encoding="utf-8").splitlines()
     stripped = [l.strip() for l in lines]
     assert ".agents-dev/log/" in stripped
+
+
+# ── install_bundled_scripts 테스트 (터미널 런처 영구화) ──────────────────
+
+
+def test_install_bundled_scripts_populates_bin_and_template(tmp_path):
+    """번들 설치 시 ~/bin 런처와 ~/.agents-dev/CLAUDE.md.template 이 배치된다."""
+    from core.workspace import install_bundled_scripts
+    install_bundled_scripts(home=tmp_path)
+    assert (tmp_path / "bin" / "agents-init").is_file()
+    assert (tmp_path / "bin" / "agent-init").is_file()
+    assert (tmp_path / "bin" / "install-tmux.sh").is_file()
+    assert (tmp_path / ".agents-dev" / "CLAUDE.md.template").is_file()
+    assert (tmp_path / ".agents-dev" / "scripts" / "team-layout.sh").is_file()
+    assert (tmp_path / ".agents-dev" / "roles" / "reviewer.md").is_file()
+
+
+def test_bundled_launcher_keeps_lf_endings(tmp_path):
+    """설치된 agents-init 은 LF 줄끝이어야 한다(CRLF 면 bash 에서 깨짐)."""
+    from core.workspace import install_bundled_scripts
+    install_bundled_scripts(home=tmp_path)
+    raw = (tmp_path / "bin" / "agents-init").read_bytes()
+    assert b"\r\n" not in raw
+
+
+def test_agents_gui_install_mirrors_core(tmp_path):
+    """레거시 agents_gui.install_bundled_scripts(.exe 진입점)도 동일하게 ~/bin 런처를 설치한다."""
+    from agents_gui import install_bundled_scripts
+    install_bundled_scripts(home=tmp_path)
+    assert (tmp_path / "bin" / "agents-init").is_file()
+    assert (tmp_path / "bin" / "install-tmux.sh").is_file()
+    assert (tmp_path / ".agents-dev" / "CLAUDE.md.template").is_file()

@@ -11,6 +11,27 @@
 
 ---
 
+## 터미널 단독 실행 (agents-init)
+
+GUI 없이 Git Bash 에서 바로 3-에이전트 tmux 세션을 띄울 수 있습니다.
+
+```bash
+agents-init            # 현재 폴더 초기화 + tmux 3분할 (Claude · Gemini · Codex)
+agents-init ~/proj     # 특정 폴더 지정
+agents-init . --bypass # claude --dangerously-skip-permissions 로 시작
+agents-init . --no-attach   # 세션만 만들고 attach 안 함
+```
+
+- `agents-init` / `agent-init` 와 `install-tmux.sh` 는 **GUI 최초 실행 시 `~/bin/` 에 자동 설치**됩니다
+  (번들 `agents_scripts/bin/` → `install_bundled_scripts()`). `~/bin` 은 Git Bash 의
+  `/etc/profile.d/env.sh` 가 PATH 에 자동 추가하므로 새 터미널에서 바로 `agents-init` 이 잡힙니다.
+- **tmux** 가 없으면 한 번만: `bash ~/bin/install-tmux.sh`
+  (MSYS2 공식 패키지에서 tmux + libevent 를 받아 `~/bin` 에 설치, 관리자 권한 불필요.
+  `msys-2.0.dll` 은 Git Bash 것을 공유 — cygheap 충돌 방지).
+- 새 폴더에는 `~/.agents-dev/CLAUDE.md.template` 의 오케스트레이션 정책이 `CLAUDE.md` 로 복사됩니다.
+
+---
+
 ## 실행법
 
 ### 방법 1: Python 직접 실행 (개발·테스트용)

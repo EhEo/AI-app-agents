@@ -24,10 +24,13 @@ Usage: $(basename "$0") [options]
 EOF
 }
 
+# 값을 요구하는 옵션이 값 없이 오면 set -u 로 죽지 않고 명확한 에러를 낸다.
+need_val() { [ "$#" -ge 2 ] || { echo "error: $1 requires a value" >&2; usage; exit 2; }; }
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
-    --project-dir) PROJECT_DIR="$2"; shift 2 ;;
-    -n|--session)  SESSION="$2"; shift 2 ;;
+    --project-dir) need_val "$@"; PROJECT_DIR="$2"; shift 2 ;;
+    -n|--session)  need_val "$@"; SESSION="$2"; shift 2 ;;
     --here)        HERE=1; shift ;;
     --no-attach)   ATTACH=0; shift ;;
     --bypass)      BYPASS=1; shift ;;
@@ -57,14 +60,16 @@ if [ "$HERE" = "1" ]; then
   tmux rename-window "$SESSION" 2>/dev/null || true
 
   tmux split-window -h -c "$PROJECT_DIR"
-  tmux send-keys "AGENT_LOG_DIR='$LOG_DIR' AGENT_SESSION='$SESSION' /usr/bin/bash '$DASH' gemini" Enter
+  printf -v _cmd 'AGENT_LOG_DIR=%q AGENT_SESSION=%q /usr/bin/bash %q gemini' "$LOG_DIR" "$SESSION" "$DASH"
+  tmux send-keys "$_cmd" Enter
 
   tmux split-window -v -c "$PROJECT_DIR"
-  tmux send-keys "AGENT_LOG_DIR='$LOG_DIR' AGENT_SESSION='$SESSION' /usr/bin/bash '$DASH' codex" Enter
+  printf -v _cmd 'AGENT_LOG_DIR=%q AGENT_SESSION=%q /usr/bin/bash %q codex' "$LOG_DIR" "$SESSION" "$DASH"
+  tmux send-keys "$_cmd" Enter
 
   tmux select-pane -L
-  tmux send-keys "cd '$PROJECT_DIR'" Enter
-  tmux send-keys "export AGENT_LOG_DIR='$LOG_DIR'" Enter
+  printf -v _cmd 'cd %q' "$PROJECT_DIR"; tmux send-keys "$_cmd" Enter
+  printf -v _cmd 'export AGENT_LOG_DIR=%q' "$LOG_DIR"; tmux send-keys "$_cmd" Enter
   tmux send-keys "$CLAUDE_CMD" Enter
   echo "✓ Layout ready (session: $SESSION). Launched: $CLAUDE_CMD"
   echo "  log: $LOG_DIR"
@@ -75,13 +80,16 @@ if tmux has-session -t "$SESSION" >/dev/null 2>&1; then
   echo "Session '$SESSION' already exists — attaching."
 else
   tmux new-session -d -s "$SESSION" -c "$PROJECT_DIR"
-  tmux send-keys -t "$SESSION" "export AGENT_LOG_DIR='$LOG_DIR'" Enter
+  printf -v _cmd 'export AGENT_LOG_DIR=%q' "$LOG_DIR"
+  tmux send-keys -t "$SESSION" "$_cmd" Enter
 
   tmux split-window -h -t "$SESSION" -c "$PROJECT_DIR"
-  tmux send-keys -t "$SESSION" "AGENT_LOG_DIR='$LOG_DIR' AGENT_SESSION='$SESSION' /usr/bin/bash '$DASH' gemini" Enter
+  printf -v _cmd 'AGENT_LOG_DIR=%q AGENT_SESSION=%q /usr/bin/bash %q gemini' "$LOG_DIR" "$SESSION" "$DASH"
+  tmux send-keys -t "$SESSION" "$_cmd" Enter
 
   tmux split-window -v -t "$SESSION" -c "$PROJECT_DIR"
-  tmux send-keys -t "$SESSION" "AGENT_LOG_DIR='$LOG_DIR' AGENT_SESSION='$SESSION' /usr/bin/bash '$DASH' codex" Enter
+  printf -v _cmd 'AGENT_LOG_DIR=%q AGENT_SESSION=%q /usr/bin/bash %q codex' "$LOG_DIR" "$SESSION" "$DASH"
+  tmux send-keys -t "$SESSION" "$_cmd" Enter
 
   tmux select-pane -t "$SESSION" -L
   tmux send-keys -t "$SESSION" "$CLAUDE_CMD" Enter
